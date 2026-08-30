@@ -5,7 +5,6 @@ Revises: 0002_tenancy
 Create Date: 2026-01-03 00:00:00.000000
 
 """
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -30,7 +29,9 @@ def upgrade() -> None:
         sa.Column("response_body", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint("tenant_id", "idempotency_key", name="pk_idempotency_records"),
+        sa.PrimaryKeyConstraint(
+            "tenant_id", "idempotency_key", name="pk_idempotency_records"
+        ),
     )
 
 

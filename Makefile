@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test cov run migrate seed db-up db-down bootstrap compose-up compose-down docker-build
+.PHONY: install lint typecheck test cov run run-worker migrate seed db-up db-down bootstrap compose-up compose-down docker-build
 
 install:
 	pip install -e ".[dev]"
@@ -18,6 +18,9 @@ cov:
 
 run:
 	uvicorn flux.api.app:app --reload --host 0.0.0.0 --port 8000
+
+run-worker:
+	uvicorn flux.worker.app:app --reload --host 0.0.0.0 --port 8090
 
 migrate:
 	alembic upgrade head

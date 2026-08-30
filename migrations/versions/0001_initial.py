@@ -5,7 +5,6 @@ Revises:
 Create Date: 2026-01-01 00:00:00.000000
 
 """
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -59,7 +58,9 @@ def upgrade() -> None:
         sa.Column("context_length", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.UniqueConstraint("model_id", "version", name="uq_versions_model_version"),
+        sa.UniqueConstraint(
+            "model_id", "version", name="uq_versions_model_version"
+        ),
     )
     op.create_index("ix_model_versions_model_id", "model_versions", ["model_id"])
     op.create_index("ix_model_versions_tenant_id", "model_versions", ["tenant_id"])

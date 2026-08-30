@@ -22,6 +22,7 @@ from flux.events import InProcessEventBus
 from flux.logging import configure_logging, get_logger
 from flux.models.router import router as models_router
 from flux.observability import configure_tracing
+from flux.tenancy.router import router as tenancy_router
 
 logger = get_logger(__name__)
 
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     _register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(models_router)
+    app.include_router(tenancy_router)
     return app
 
 

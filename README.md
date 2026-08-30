@@ -4,8 +4,8 @@ GPU-accelerated ML inference and model serving platform. This repository is the
 control plane: the strongly consistent service that owns the model catalog,
 tenancy, access, and (in later phases) discovery, autoscaling, and cost.
 
-This is Phase 1 of a phased build. It delivers the production foundation and one
-complete, secured, observable, tested vertical slice: the Model Registry.
+This is a phased build. Phase 1 delivered the production foundation and the Model
+Registry slice; Phase 2 adds tenancy and role-based access control.
 
 ## What is in Phase 1
 
@@ -20,9 +20,21 @@ complete, secured, observable, tested vertical slice: the Model Registry.
 - Unit, integration, and API tests that run without external services (SQLite).
 - Dockerfile (multi-stage, non-root) and Docker Compose for local development.
 
-Deferred to later phases: full tenancy and RBAC management, the inference gateway
-and OpenAI-compatible serving API, router/scheduler and GPU workers, autoscaling
-and cost, and the full Kubernetes/Helm/Terraform/CI stack.
+## What is in Phase 2
+
+- Tenant lifecycle management: create, list, fetch, suspend, and reactivate tenants.
+- API-key management: issue (plaintext returned exactly once), list (secret never
+  shown, only a display prefix), and revoke. Revoked keys stop authenticating.
+- Role-based access control with a canonical role vocabulary
+  (platform.admin, tenant.admin, model.read, model.write).
+- Platform admin acts as a superuser; tenant admins are scoped to their own tenant
+  and cannot escalate privileges by granting platform.admin.
+- RBAC enforced on the Model Registry: reads require model.read, writes model.write.
+- A framework-free key hashing module (HMAC-SHA256) shared by auth and management.
+
+Deferred to later phases: the inference gateway and OpenAI-compatible serving API,
+router/scheduler and GPU workers, autoscaling and cost, and the full
+Kubernetes/Helm/Terraform/CI stack.
 
 ## Requirements
 

@@ -30,6 +30,22 @@ class ForbiddenError(FluxError):
     """Raised when an authenticated principal lacks permission."""
 
 
+class RateLimitError(FluxError):
+    """Raised when a caller exceeds its rate limit."""
+
+    def __init__(self, retry_after: float) -> None:
+        super().__init__("rate limit exceeded")
+        self.retry_after = retry_after
+
+
+class OverloadedError(FluxError):
+    """Raised when the serving queue is saturated and cannot admit work."""
+
+
+class IdempotencyMismatchError(FluxError):
+    """Raised when an idempotency key is reused with a different request."""
+
+
 @dataclass(frozen=True)
 class ProblemDetail:
     """RFC 9457 problem details representation."""

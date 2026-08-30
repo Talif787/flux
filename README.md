@@ -5,7 +5,9 @@ control plane: the strongly consistent service that owns the model catalog,
 tenancy, access, and (in later phases) discovery, autoscaling, and cost.
 
 This is a phased build. Phase 1 delivered the production foundation and the Model
-Registry slice; Phase 2 adds tenancy and role-based access control.
+Registry slice; Phase 2 added tenancy and role-based access control; Phase 3 adds
+the request plane: an OpenAI-compatible serving API in front of clean router,
+scheduler, engine, rate-limiter, and idempotency abstractions.
 
 ## What is in Phase 1
 
@@ -32,9 +34,30 @@ Registry slice; Phase 2 adds tenancy and role-based access control.
 - RBAC enforced on the Model Registry: reads require model.read, writes model.write.
 - A framework-free key hashing module (HMAC-SHA256) shared by auth and management.
 
-Deferred to later phases: the inference gateway and OpenAI-compatible serving API,
-router/scheduler and GPU workers, autoscaling and cost, and the full
-Kubernetes/Helm/Terraform/CI stack.
+## What is in Phase 3
+
+- OpenAI-compatible chat completions at POST /v1/chat/completions, both a
+  single JSON response and Server-Sent Events streaming (stream=true), with
+  usage accounting (prompt, completion, total tokens).
+- Request-plane abstractions as ports with in-process or Postgres adapters:
+  a Router (single logical pool today, the seam for KV-aware routing), a
+  Scheduler (bounded admission control that sheds load with HTTP 503), an
+  InferenceEngine, a RateLimiter, and an IdempotencyStore.
+- A deterministic stub engine behind the InferenceEngine port so the whole
+  path is exercisable without GPUs. Real serving backends replace it in
+  Phase 4 without touching callers.
+- Per-tenant token-bucket rate limiting (HTTP 429 with a Retry-After header).
+- Idempotent POST support via the Idempotency-Key header, backed by a
+  Postgres record that also acts as an in-flight lock: repeats replay the
+  stored response, a reused key with a different body is rejected (422), and
+  a failed request is discarded so a retry can proceed.
+- A new inference.invoke role gating the serving endpoints (platform.admin
+  remains a superuser).
+- Alembic migration 0003 adds the idempotency_records table.
+
+Deferred to later phases: GPU model workers and real serving backends behind the
+InferenceEngine port (Phase 4), autoscaling and cost (Phase 5), and the full
+Kubernetes/Helm/Terraform/CI stack (Phase 6).
 
 ## Requirements
 

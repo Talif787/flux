@@ -31,9 +31,7 @@ router = APIRouter(prefix="/v1/models", tags=["models"])
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_LIMIT)]
 OffsetQuery = Annotated[int, Query(ge=0)]
 
-Reader = Annotated[
-    Principal, Depends(require_roles(Role.MODEL_READ, Role.MODEL_WRITE))
-]
+Reader = Annotated[Principal, Depends(require_roles(Role.MODEL_READ, Role.MODEL_WRITE))]
 Writer = Annotated[Principal, Depends(require_roles(Role.MODEL_WRITE))]
 
 

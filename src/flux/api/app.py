@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,14 +15,21 @@ from flux.errors import (
     ConflictError,
     DomainError,
     ForbiddenError,
+    IdempotencyMismatchError,
     NotFoundError,
+    OverloadedError,
     ProblemDetail,
+    RateLimitError,
     UnauthorizedError,
 )
 from flux.events import InProcessEventBus
 from flux.logging import configure_logging, get_logger
 from flux.models.router import router as models_router
 from flux.observability import configure_tracing
+from flux.serving.engine import StubInferenceEngine
+from flux.serving.ratelimit import TokenBucketRateLimiter
+from flux.serving.router import router as serving_router
+from flux.serving.scheduling import SemaphoreScheduler
 from flux.tenancy.router import router as tenancy_router
 
 logger = get_logger(__name__)
@@ -64,6 +72,20 @@ def _register_exception_handlers(app: FastAPI) -> None:
     async def _forbidden(_: Request, exc: ForbiddenError) -> JSONResponse:
         return _problem(403, "Forbidden", str(exc), "forbidden")
 
+    @app.exception_handler(RateLimitError)
+    async def _rate_limited(_: Request, exc: RateLimitError) -> JSONResponse:
+        resp = _problem(429, "Too Many Requests", str(exc), "rate-limited")
+        resp.headers["Retry-After"] = str(max(1, math.ceil(exc.retry_after)))
+        return resp
+
+    @app.exception_handler(OverloadedError)
+    async def _overloaded(_: Request, exc: OverloadedError) -> JSONResponse:
+        return _problem(503, "Service Unavailable", str(exc), "overloaded")
+
+    @app.exception_handler(IdempotencyMismatchError)
+    async def _idem_mismatch(_: Request, exc: IdempotencyMismatchError) -> JSONResponse:
+        return _problem(422, "Unprocessable Entity", str(exc), "idempotency-mismatch")
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
@@ -76,6 +98,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         app.state.sessionmaker = create_sessionmaker(engine)
         app.state.event_bus = InProcessEventBus()
+        app.state.rate_limiter = TokenBucketRateLimiter(
+            rps=settings.rate_limit_rps, burst=settings.rate_limit_burst
+        )
+        app.state.scheduler = SemaphoreScheduler(
+            max_concurrency=settings.max_concurrency, max_queue=settings.max_queue
+        )
+        app.state.inference_engine = StubInferenceEngine()
         logger.info("startup", env=settings.env, service=settings.service_name)
         try:
             yield
@@ -90,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(models_router)
     app.include_router(tenancy_router)
+    app.include_router(serving_router)
     return app
 
 

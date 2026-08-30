@@ -38,20 +38,14 @@ async def test_register_and_fetch_model(client: AsyncClient, api_key: str) -> No
     assert listing.json()["meta"]["total"] == 1
 
 
-async def test_duplicate_model_returns_conflict(
-    client: AsyncClient, api_key: str
-) -> None:
+async def test_duplicate_model_returns_conflict(client: AsyncClient, api_key: str) -> None:
     body = {"name": "dup", "family": "llama"}
-    assert (
-        await client.post("/v1/models", json=body, headers=_auth(api_key))
-    ).status_code == 201
+    assert (await client.post("/v1/models", json=body, headers=_auth(api_key))).status_code == 201
     conflict = await client.post("/v1/models", json=body, headers=_auth(api_key))
     assert conflict.status_code == 409
 
 
-async def test_register_version_and_validation(
-    client: AsyncClient, api_key: str
-) -> None:
+async def test_register_version_and_validation(client: AsyncClient, api_key: str) -> None:
     created = await client.post(
         "/v1/models",
         json={"name": "m", "family": "llama"},
@@ -75,8 +69,6 @@ async def test_register_version_and_validation(
     assert invalid.status_code == 422
 
 
-async def test_get_missing_model_returns_not_found(
-    client: AsyncClient, api_key: str
-) -> None:
+async def test_get_missing_model_returns_not_found(client: AsyncClient, api_key: str) -> None:
     resp = await client.get("/v1/models/does-not-exist", headers=_auth(api_key))
     assert resp.status_code == 404

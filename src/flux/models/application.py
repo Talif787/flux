@@ -40,9 +40,7 @@ class ModelService:
     async def register_model(self, cmd: RegisterModelCommand) -> Model:
         if await self._repo.model_name_exists(cmd.tenant_id, cmd.name.strip()):
             raise ConflictError(f"model already exists: {cmd.name}")
-        model, event = Model.register(
-            tenant_id=cmd.tenant_id, name=cmd.name, family=cmd.family
-        )
+        model, event = Model.register(tenant_id=cmd.tenant_id, name=cmd.name, family=cmd.family)
         await self._repo.add_model(model)
         await self._events.publish(event)
         return model
@@ -58,9 +56,7 @@ class ModelService:
     ) -> Page[Model]:
         return await self._repo.list_models(tenant_id, family=family, page=page)
 
-    async def register_version(
-        self, cmd: RegisterModelVersionCommand
-    ) -> ModelVersion:
+    async def register_version(self, cmd: RegisterModelVersionCommand) -> ModelVersion:
         model = await self._repo.get_model(cmd.tenant_id, cmd.model_id)
         if model is None:
             raise NotFoundError("model", cmd.model_id)

@@ -83,8 +83,6 @@ async def test_add_and_list_versions(
         await repo.add_model(model)
         await repo.add_version(version)
     async with sessionmaker() as session:
-        page = await (await _repo(session)).list_versions(
-            "t1", model.id, page=PageParams()
-        )
+        page = await (await _repo(session)).list_versions("t1", model.id, page=PageParams())
     assert page.total == 1
     assert page.items[0].version == "v1"

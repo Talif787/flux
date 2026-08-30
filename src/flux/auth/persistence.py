@@ -23,9 +23,7 @@ class ApiKeyRow(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
-    key_hash: Mapped[str] = mapped_column(
-        String(64), unique=True, index=True, nullable=False
-    )
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     roles: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
 
@@ -53,6 +51,4 @@ class SqlAlchemyAuthRepository:
             return None
         api_key, _tenant = row
         roles = frozenset(r for r in api_key.roles.split(",") if r)
-        return Principal(
-            tenant_id=api_key.tenant_id, api_key_id=api_key.id, roles=roles
-        )
+        return Principal(tenant_id=api_key.tenant_id, api_key_id=api_key.id, roles=roles)

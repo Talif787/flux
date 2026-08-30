@@ -7,7 +7,9 @@ tenancy, access, and (in later phases) discovery, autoscaling, and cost.
 This is a phased build. Phase 1 delivered the production foundation and the Model
 Registry slice; Phase 2 added tenancy and role-based access control; Phase 3 adds
 the request plane: an OpenAI-compatible serving API in front of clean router,
-scheduler, engine, rate-limiter, and idempotency abstractions.
+scheduler, engine, rate-limiter, and idempotency abstractions; Phase 4 (Part A)
+adds the compute plane: a standalone Flux worker that serves inference behind a
+pluggable backend port.
 
 ## What is in Phase 1
 
@@ -55,9 +57,29 @@ scheduler, engine, rate-limiter, and idempotency abstractions.
   remains a superuser).
 - Alembic migration 0003 adds the idempotency_records table.
 
-Deferred to later phases: GPU model workers and real serving backends behind the
-InferenceEngine port (Phase 4), autoscaling and cost (Phase 5), and the full
-Kubernetes/Helm/Terraform/CI stack (Phase 6).
+## What is in Phase 4 (Part A): the Flux worker
+
+- A standalone, runnable serving node (`flux.worker.app`) separate from the
+  control plane, started with `make run-worker` (port 8090).
+- An OpenAI-compatible inference surface on the worker
+  (POST /v1/chat/completions, JSON and SSE streaming, GET /v1/models,
+  livez/readyz), the same contract real engines such as vLLM and TGI expose.
+- An InferenceBackend port with a deterministic EchoBackend (CPU, no GPU). A
+  real GPU engine plugs into this port without changing the worker's HTTP
+  surface.
+- Model gating: a worker advertises the models it serves
+  (`FLUX_WORKER_SERVED_MODELS`) and returns 404 for anything else; an empty
+  set serves any model (developer convenience).
+- Worker configuration is isolated under the `FLUX_WORKER_` prefix and an
+  optional `.env.worker`, so a worker and the control plane run side by side.
+
+Part B (next) adds the control-plane side: a worker registry (register and
+heartbeat), discovery-based routing, and a remote inference engine so the
+gateway dispatches requests to registered workers over HTTP.
+
+Deferred to later phases: a real GPU engine behind the worker's InferenceBackend
+port and control-plane integration (Phase 4 Part B), autoscaling and cost
+(Phase 5), and the full Kubernetes/Helm/Terraform/CI stack (Phase 6).
 
 ## Requirements
 

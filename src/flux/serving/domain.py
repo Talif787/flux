@@ -77,9 +77,20 @@ class InferenceRequest:
 
 @dataclass(frozen=True)
 class RouteTarget:
-    """Where a request should be served. In Phase 3 there is one logical pool."""
+    """Where a request should be served.
+
+    In stub mode this is a single logical pool. In remote mode ``endpoint`` and
+    ``worker_id`` identify the selected worker."""
 
     pool_id: str
+    endpoint: str | None = None
+    worker_id: str | None = None
+
+
+@dataclass(frozen=True)
+class WorkerEndpoint:
+    worker_id: str
+    base_url: str
 
 
 @dataclass(frozen=True)
@@ -120,6 +131,10 @@ class ModelCatalog(Protocol):
 
 class Router(Protocol):
     async def route(self, request: InferenceRequest) -> RouteTarget: ...
+
+
+class WorkerDirectory(Protocol):
+    async def candidates(self, model_name: str) -> list[WorkerEndpoint]: ...
 
 
 class Scheduler(Protocol):

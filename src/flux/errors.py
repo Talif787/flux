@@ -46,6 +46,14 @@ class IdempotencyMismatchError(FluxError):
     """Raised when an idempotency key is reused with a different request."""
 
 
+class NoWorkerAvailableError(FluxError):
+    """Raised when no healthy worker serves the requested model."""
+
+
+class UpstreamError(FluxError):
+    """Raised when a worker returns an error or cannot be reached."""
+
+
 @dataclass(frozen=True)
 class ProblemDetail:
     """RFC 9457 problem details representation."""

@@ -33,13 +33,15 @@ class Settings(BaseSettings):
     api_key_pepper: str = Field(default="change-me", min_length=1)
 
     # Request plane (serving) controls.
-    serving_backend: Literal["stub"] = "stub"
+    serving_backend: Literal["stub", "remote"] = "stub"
     rate_limit_enabled: bool = True
     rate_limit_rps: float = Field(default=10.0, ge=0.0)
     rate_limit_burst: int = Field(default=20, ge=1)
     max_concurrency: int = Field(default=32, ge=1)
     max_queue: int = Field(default=64, ge=0)
     idempotency_enabled: bool = True
+    worker_heartbeat_ttl_seconds: int = Field(default=60, ge=1)
+    remote_request_timeout_seconds: float = Field(default=30.0, gt=0.0)
 
     otel_enabled: bool = False
     otel_exporter_otlp_endpoint: str | None = None

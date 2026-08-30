@@ -20,6 +20,7 @@ from flux.events import InProcessEventBus
 from flux.ids import new_id
 from flux.serving.engine import StubInferenceEngine
 from flux.serving.ratelimit import TokenBucketRateLimiter
+from flux.serving.routing import RoundRobinSelector
 from flux.serving.scheduling import SemaphoreScheduler
 
 TEST_PEPPER = "test-pepper"
@@ -37,6 +38,7 @@ def settings() -> Settings:
         api_key_pepper=TEST_PEPPER,
         log_json=False,
         otel_enabled=False,
+        serving_backend="stub",
     )
 
 
@@ -121,6 +123,7 @@ async def app(
     application.state.rate_limiter = TokenBucketRateLimiter(rps=1000, burst=1000)
     application.state.scheduler = SemaphoreScheduler(max_concurrency=64, max_queue=128)
     application.state.inference_engine = StubInferenceEngine()
+    application.state.worker_selector = RoundRobinSelector()
 
     async def _session_override() -> AsyncIterator[AsyncSession]:
         async with sessionmaker() as session:

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from flux.events import EventBus
 from flux.serving.domain import InferenceEngine, RateLimiter, Scheduler
+from flux.serving.routing import RoundRobinSelector
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -34,3 +35,8 @@ def get_scheduler(request: Request) -> Scheduler:
 def get_inference_engine(request: Request) -> InferenceEngine:
     engine: InferenceEngine = request.app.state.inference_engine
     return engine
+
+
+def get_worker_selector(request: Request) -> RoundRobinSelector:
+    selector: RoundRobinSelector = request.app.state.worker_selector
+    return selector

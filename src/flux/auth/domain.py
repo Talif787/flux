@@ -25,6 +25,7 @@ class Role(StrEnum):
     TENANT_ADMIN = "tenant.admin"
     MODEL_READ = "model.read"
     MODEL_WRITE = "model.write"
+    INFERENCE = "inference.invoke"
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+
+from flux.errors import NotFoundError, RateLimitError
+from flux.serving.domain import (
+    ChatMessage,
+    CompletionChunk,
+    CompletionResult,
+    InferenceEngine,
+    InferenceRequest,
+    ModelCatalog,
+    RateLimiter,
+    Router,
+    RouteTarget,
+    SamplingParams,
+    Scheduler,
+)
+
+
+@dataclass(frozen=True)
+class Prepared:
+    """A request that has cleared rate limiting, resolution, routing, and
+    admission. It holds an admission slot that the caller must release by
+    running it to completion (or streaming it) exactly once."""
+
+    request: InferenceRequest
+    target: RouteTarget
+
+
+class InferenceService:
+    """Orchestrates the request plane: rate limit, resolve, route, admit, run.
+
+    Admission is acquired in ``prepare`` (so overload and rate limiting surface
+    as synchronous HTTP status codes) and released when ``complete`` or
+    ``stream`` finishes.
+    """
+
+    def __init__(
+        self,
+        *,
+        engine: InferenceEngine,
+        router: Router,
+        scheduler: Scheduler,
+        rate_limiter: RateLimiter,
+        catalog: ModelCatalog,
+        rate_limit_enabled: bool = True,
+    ) -> None:
+        self._engine = engine
+        self._router = router
+        self._scheduler = scheduler
+        self._rate_limiter = rate_limiter
+        self._catalog = catalog
+        self._rate_limit_enabled = rate_limit_enabled
+
+    def _check_rate(self, tenant_id: str) -> None:
+        if not self._rate_limit_enabled:
+            return
+        decision = self._rate_limiter.check(tenant_id)
+        if not decision.allowed:
+            raise RateLimitError(retry_after=decision.retry_after)
+
+    async def _resolve(self, tenant_id: str, name: str) -> InferenceRequest:
+        resolved = await self._catalog.resolve(tenant_id, name)
+        if resolved is None:
+            raise NotFoundError("model", name)
+        return InferenceRequest(
+            tenant_id=tenant_id,
+            model_id=resolved.id,
+            model_name=resolved.name,
+            messages=(),
+            sampling=SamplingParams(),
+        )
+
+    async def prepare(
+        self,
+        *,
+        tenant_id: str,
+        model: str,
+        messages: tuple[ChatMessage, ...],
+        sampling: SamplingParams,
+    ) -> Prepared:
+        self._check_rate(tenant_id)
+        base = await self._resolve(tenant_id, model)
+        request = InferenceRequest(
+            tenant_id=tenant_id,
+            model_id=base.model_id,
+            model_name=base.model_name,
+            messages=messages,
+            sampling=sampling,
+        )
+        target = await self._router.route(request)
+        await self._scheduler.acquire()
+        return Prepared(request=request, target=target)
+
+    async def complete(self, prepared: Prepared) -> CompletionResult:
+        try:
+            return await self._engine.generate(prepared.request, prepared.target)
+        finally:
+            self._scheduler.release()
+
+    async def stream(self, prepared: Prepared) -> AsyncIterator[CompletionChunk]:
+        try:
+            async for chunk in self._engine.stream(prepared.request, prepared.target):
+                yield chunk
+        finally:
+            self._scheduler.release()

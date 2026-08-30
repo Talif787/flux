@@ -17,10 +17,12 @@ from flux.errors import (
     ForbiddenError,
     IdempotencyMismatchError,
     NotFoundError,
+    NoWorkerAvailableError,
     OverloadedError,
     ProblemDetail,
     RateLimitError,
     UnauthorizedError,
+    UpstreamError,
 )
 from flux.events import InProcessEventBus
 from flux.logging import configure_logging, get_logger
@@ -28,9 +30,12 @@ from flux.models.router import router as models_router
 from flux.observability import configure_tracing
 from flux.serving.engine import StubInferenceEngine
 from flux.serving.ratelimit import TokenBucketRateLimiter
+from flux.serving.remote import RemoteInferenceEngine, default_client_factory
 from flux.serving.router import router as serving_router
+from flux.serving.routing import RoundRobinSelector
 from flux.serving.scheduling import SemaphoreScheduler
 from flux.tenancy.router import router as tenancy_router
+from flux.workers.router import router as workers_router
 
 logger = get_logger(__name__)
 
@@ -86,6 +91,14 @@ def _register_exception_handlers(app: FastAPI) -> None:
     async def _idem_mismatch(_: Request, exc: IdempotencyMismatchError) -> JSONResponse:
         return _problem(422, "Unprocessable Entity", str(exc), "idempotency-mismatch")
 
+    @app.exception_handler(NoWorkerAvailableError)
+    async def _no_worker(_: Request, exc: NoWorkerAvailableError) -> JSONResponse:
+        return _problem(503, "Service Unavailable", str(exc), "no-worker")
+
+    @app.exception_handler(UpstreamError)
+    async def _upstream(_: Request, exc: UpstreamError) -> JSONResponse:
+        return _problem(502, "Bad Gateway", str(exc), "upstream-error")
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
@@ -104,7 +117,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.scheduler = SemaphoreScheduler(
             max_concurrency=settings.max_concurrency, max_queue=settings.max_queue
         )
-        app.state.inference_engine = StubInferenceEngine()
+        app.state.worker_selector = RoundRobinSelector()
+        if settings.serving_backend == "remote":
+            app.state.inference_engine = RemoteInferenceEngine(
+                default_client_factory(settings.remote_request_timeout_seconds)
+            )
+        else:
+            app.state.inference_engine = StubInferenceEngine()
         logger.info("startup", env=settings.env, service=settings.service_name)
         try:
             yield
@@ -120,6 +139,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(models_router)
     app.include_router(tenancy_router)
     app.include_router(serving_router)
+    app.include_router(workers_router)
     return app
 
 

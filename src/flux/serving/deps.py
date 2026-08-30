@@ -10,6 +10,7 @@ from flux.api.deps import (
     get_rate_limiter,
     get_scheduler,
     get_session,
+    get_worker_selector,
 )
 from flux.config import Settings, get_settings
 from flux.serving.application import InferenceService
@@ -18,13 +19,15 @@ from flux.serving.domain import (
     InferenceEngine,
     ModelCatalog,
     RateLimiter,
+    Router,
     Scheduler,
 )
 from flux.serving.persistence import (
     SqlAlchemyIdempotencyStore,
     SqlAlchemyModelCatalog,
+    SqlAlchemyWorkerDirectory,
 )
-from flux.serving.routing import StaticRouter
+from flux.serving.routing import RegistryRouter, RoundRobinSelector, StaticRouter
 
 
 def get_model_catalog(
@@ -44,11 +47,19 @@ def get_inference_service(
     scheduler: Annotated[Scheduler, Depends(get_scheduler)],
     rate_limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
     catalog: Annotated[ModelCatalog, Depends(get_model_catalog)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    selector: Annotated[RoundRobinSelector, Depends(get_worker_selector)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> InferenceService:
+    router: Router
+    if settings.serving_backend == "remote":
+        directory = SqlAlchemyWorkerDirectory(session, settings.worker_heartbeat_ttl_seconds)
+        router = RegistryRouter(directory, selector)
+    else:
+        router = StaticRouter()
     return InferenceService(
         engine=engine,
-        router=StaticRouter(),
+        router=router,
         scheduler=scheduler,
         rate_limiter=rate_limiter,
         catalog=catalog,

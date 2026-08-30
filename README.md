@@ -8,8 +8,10 @@ This is a phased build. Phase 1 delivered the production foundation and the Mode
 Registry slice; Phase 2 added tenancy and role-based access control; Phase 3 adds
 the request plane: an OpenAI-compatible serving API in front of clean router,
 scheduler, engine, rate-limiter, and idempotency abstractions; Phase 4 (Part A)
-adds the compute plane: a standalone Flux worker that serves inference behind a
-pluggable backend port.
+adds the compute plane as a standalone Flux worker that serves inference behind a
+pluggable backend port; Phase 4 (Part B) connects the two planes with a worker
+registry, discovery-based routing, and a remote inference engine, so the gateway
+dispatches requests to registered workers over HTTP.
 
 ## What is in Phase 1
 
@@ -73,12 +75,37 @@ pluggable backend port.
 - Worker configuration is isolated under the `FLUX_WORKER_` prefix and an
   optional `.env.worker`, so a worker and the control plane run side by side.
 
-Part B (next) adds the control-plane side: a worker registry (register and
-heartbeat), discovery-based routing, and a remote inference engine so the
-gateway dispatches requests to registered workers over HTTP.
+## What is in Phase 4 (Part B): control-plane integration
 
-Deferred to later phases: a real GPU engine behind the worker's InferenceBackend
-port and control-plane integration (Phase 4 Part B), autoscaling and cost
+- A worker registry (`/v1/workers`, `worker.register` role): register or update
+  a worker (idempotent `PUT`), refresh liveness (`POST .../heartbeat`),
+  deregister (`DELETE`), and list. Workers are platform-global, not
+  tenant-scoped, and carry the models they serve plus a max-concurrency hint.
+- Discovery-based routing (`RegistryRouter`): given a model, it asks the worker
+  directory for active workers whose heartbeat is fresh (within
+  `FLUX_WORKER_HEARTBEAT_TTL_SECONDS`) and that advertise the model, then picks
+  one round-robin. No candidate yields HTTP 503.
+- A remote inference engine (`RemoteInferenceEngine`): calls the selected
+  worker's OpenAI-compatible surface over HTTP (JSON and SSE), parses the
+  response, and maps transport failures or worker errors to HTTP 502.
+- A serving-mode switch: `FLUX_SERVING_BACKEND=stub` (default) keeps the
+  in-process stub engine; `remote` selects the registry router and remote
+  engine. The switch is config-gated, so Phases 1 to 3 behavior is unchanged by
+  default.
+- Model linkage: the gateway still resolves the model in the caller's tenant
+  (404 if unregistered), then routes to a worker that serves it (503 if none),
+  so both the tenant catalog and the worker's advertised set must agree.
+
+Migration `0004_workers` adds the `workers` table. `httpx` is now a runtime
+dependency (the gateway calls workers).
+
+In this phase workers are registered through the control-plane API (an operator
+or a deploy hook issues the `PUT`); a generous heartbeat TTL means a single
+registration keeps a worker routable for a test session. Worker self-registration
+(a startup hook and heartbeat loop inside the worker) is a small follow-on.
+
+Deferred to later phases: worker self-registration and a real GPU engine behind
+the worker's InferenceBackend port (Phase 4 follow-on), autoscaling and cost
 (Phase 5), and the full Kubernetes/Helm/Terraform/CI stack (Phase 6).
 
 ## Requirements

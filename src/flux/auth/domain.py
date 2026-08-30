@@ -26,6 +26,7 @@ class Role(StrEnum):
     MODEL_READ = "model.read"
     MODEL_WRITE = "model.write"
     INFERENCE = "inference.invoke"
+    WORKER = "worker.register"
 
 
 @dataclass(frozen=True)

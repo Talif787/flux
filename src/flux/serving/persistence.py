@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import DateTime, Integer, String, Text, select
 from sqlalchemy.exc import IntegrityError
@@ -10,7 +10,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from flux.db import Base
 from flux.errors import ConflictError, IdempotencyMismatchError
 from flux.models.persistence import ModelRow
-from flux.serving.domain import BeginOutcome, IdempotencyStatus, ResolvedModel
+from flux.serving.domain import (
+    BeginOutcome,
+    IdempotencyStatus,
+    ResolvedModel,
+    WorkerEndpoint,
+)
+from flux.workers.persistence import WorkerRow
 
 
 class IdempotencyRow(Base):
@@ -96,3 +102,36 @@ class SqlAlchemyIdempotencyStore:
         if row is not None:
             await self._session.delete(row)
             await self._session.commit()
+
+
+class SqlAlchemyWorkerDirectory:
+    """Read adapter selecting healthy workers that serve a given model.
+
+    A worker is a candidate when it is active, its heartbeat is fresh (within
+    the configured TTL), and it advertises the model (an empty advertised set
+    means it serves any model). Results are ordered by id for stable round-robin.
+    """
+
+    def __init__(self, session: AsyncSession, ttl_seconds: int) -> None:
+        self._session = session
+        self._ttl_seconds = ttl_seconds
+
+    async def candidates(self, model_name: str) -> list[WorkerEndpoint]:
+        cutoff = datetime.now(UTC) - timedelta(seconds=self._ttl_seconds)
+        rows = (
+            (await self._session.execute(select(WorkerRow).where(WorkerRow.status == "active")))
+            .scalars()
+            .all()
+        )
+        endpoints: list[WorkerEndpoint] = []
+        for row in rows:
+            heartbeat = row.last_heartbeat_at
+            if heartbeat.tzinfo is None:
+                heartbeat = heartbeat.replace(tzinfo=UTC)
+            if heartbeat < cutoff:
+                continue
+            served = {m for m in row.served_models.split(",") if m}
+            if served and model_name not in served:
+                continue
+            endpoints.append(WorkerEndpoint(worker_id=row.id, base_url=row.base_url))
+        return sorted(endpoints, key=lambda e: e.worker_id)

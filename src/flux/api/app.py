@@ -26,6 +26,7 @@ from flux.errors import (
 )
 from flux.events import InProcessEventBus
 from flux.logging import configure_logging, get_logger
+from flux.metering.router import router as metering_router
 from flux.models.router import router as models_router
 from flux.observability import configure_tracing
 from flux.serving.engine import StubInferenceEngine
@@ -140,6 +141,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tenancy_router)
     app.include_router(serving_router)
     app.include_router(workers_router)
+    app.include_router(metering_router)
     return app
 
 

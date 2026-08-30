@@ -156,6 +156,18 @@ class InferenceEngine(Protocol):
     ) -> AsyncIterator[CompletionChunk]: ...
 
 
+class UsageRecorder(Protocol):
+    async def record(
+        self,
+        *,
+        tenant_id: str,
+        model_id: str,
+        model_name: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None: ...
+
+
 class IdempotencyStore(Protocol):
     async def begin(self, tenant_id: str, key: str, fingerprint: str) -> BeginOutcome: ...
     async def complete(self, tenant_id: str, key: str, code: int, body: str) -> None: ...

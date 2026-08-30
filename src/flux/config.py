@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
     idempotency_enabled: bool = True
     worker_heartbeat_ttl_seconds: int = Field(default=60, ge=1)
     remote_request_timeout_seconds: float = Field(default=30.0, gt=0.0)
+    metering_enabled: bool = True
+    default_prompt_per_1k: Decimal = Field(default=Decimal("0.0005"), ge=0)
+    default_completion_per_1k: Decimal = Field(default=Decimal("0.0015"), ge=0)
+    billing_currency: str = "USD"
 
     otel_enabled: bool = False
     otel_exporter_otlp_endpoint: str | None = None

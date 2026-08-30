@@ -9,7 +9,7 @@ Registry slice; Phase 2 added tenancy and role-based access control; Phase 3 add
 the request plane: an OpenAI-compatible serving API in front of clean router,
 scheduler, engine, rate-limiter, and idempotency abstractions; Phase 4 (Part A)
 adds the compute plane as a standalone Flux worker that serves inference behind a
-pluggable backend port; Phase 4 (Part B) connects the two planes with a worker
+pluggable backend port; Phase 4 (Part B) connected the two planes with a worker
 registry, discovery-based routing, and a remote inference engine, so the gateway
 dispatches requests to registered workers over HTTP.
 
@@ -105,8 +105,38 @@ registration keeps a worker routable for a test session. Worker self-registratio
 (a startup hook and heartbeat loop inside the worker) is a small follow-on.
 
 Deferred to later phases: worker self-registration and a real GPU engine behind
-the worker's InferenceBackend port (Phase 4 follow-on), autoscaling and cost
+the worker's InferenceBackend port (Phase 4 follow-on); streaming metering,
+budgets with enforcement, and autoscaling (Phase 5 Part B); and further cost
 (Phase 5), and the full Kubernetes/Helm/Terraform/CI stack (Phase 6).
+
+## What is in Phase 5 (Part A): usage metering and cost
+
+Phase 5 Part A adds the FinOps read side: it meters real usage from the serving
+path, prices it, and reports cost per tenant and per model.
+
+- Every non-streaming completion is metered into a `usage_records` row (tenant,
+  model, prompt and completion tokens, timestamp). Metering is best-effort: a
+  metering failure is logged and never fails the inference request. It is gated
+  by `FLUX_METERING_ENABLED` (default on).
+- Per-model prices are a managed resource under `/v1/pricing`: platform admins
+  set rates (`PUT`), read one or list all (`GET`), and remove them (`DELETE`).
+  Rates are per 1000 prompt tokens and per 1000 completion tokens. Models without
+  an explicit price fall back to the configured defaults.
+- A cost report is served at `GET /v1/usage`, aggregating usage by model over an
+  optional time window (`from`, `to`) with an optional `model` filter. A tenant
+  admin sees their own tenant; a platform admin can scope to any tenant (or all
+  tenants). Each line carries token totals, request count, and computed cost, and
+  the report carries the currency and grand totals.
+- Money is computed with `Decimal`, quantized to six places, and serialized as a
+  string in responses. Prices are stored as strings so exact rates survive on
+  SQLite, which has no exact numeric type. Migration `0005_metering` adds the
+  `usage_records` and `model_prices` tables.
+- Metering reuses existing roles: `tenant.admin` views usage and prices,
+  `platform.admin` manages prices. No new roles are introduced.
+
+Scope note: only non-streaming completions are metered in Part A. Streaming usage
+metering, per-tenant budgets with serving-path enforcement, and autoscaling
+recommendations are deferred to Phase 5 Part B.
 
 ## Requirements
 

@@ -21,24 +21,18 @@ from flux.pagination import Page, PageParams
 
 class ModelRow(Base):
     __tablename__ = "models"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "name", name="uq_models_tenant_name"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_models_tenant_name"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     family: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ModelVersionRow(Base):
     __tablename__ = "model_versions"
-    __table_args__ = (
-        UniqueConstraint("model_id", "version", name="uq_versions_model_version"),
-    )
+    __table_args__ = (UniqueConstraint("model_id", "version", name="uq_versions_model_version"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     model_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
@@ -47,9 +41,7 @@ class ModelVersionRow(Base):
     precision: Mapped[str] = mapped_column(String(16), nullable=False)
     context_length: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def _to_model(row: ModelRow) -> Model:
@@ -119,11 +111,7 @@ class SqlAlchemyModelRepository:
         self, tenant_id: str, *, family: str | None, page: PageParams
     ) -> Page[Model]:
         base = select(ModelRow).where(ModelRow.tenant_id == tenant_id)
-        counter = (
-            select(func.count())
-            .select_from(ModelRow)
-            .where(ModelRow.tenant_id == tenant_id)
-        )
+        counter = select(func.count()).select_from(ModelRow).where(ModelRow.tenant_id == tenant_id)
         if family:
             base = base.where(ModelRow.family == family)
             counter = counter.where(ModelRow.family == family)
@@ -131,9 +119,7 @@ class SqlAlchemyModelRepository:
         rows = (
             (
                 await self._session.execute(
-                    base.order_by(ModelRow.created_at.desc())
-                    .limit(page.limit)
-                    .offset(page.offset)
+                    base.order_by(ModelRow.created_at.desc()).limit(page.limit).offset(page.offset)
                 )
             )
             .scalars()
@@ -163,9 +149,7 @@ class SqlAlchemyModelRepository:
             await self._session.commit()
         except IntegrityError as exc:
             await self._session.rollback()
-            raise ConflictError(
-                f"version already exists: {version.version}"
-            ) from exc
+            raise ConflictError(f"version already exists: {version.version}") from exc
 
     async def list_versions(
         self, tenant_id: str, model_id: str, *, page: PageParams
@@ -177,9 +161,7 @@ class SqlAlchemyModelRepository:
         total = int(
             (
                 await self._session.execute(
-                    select(func.count())
-                    .select_from(ModelVersionRow)
-                    .where(*predicate)
+                    select(func.count()).select_from(ModelVersionRow).where(*predicate)
                 )
             ).scalar_one()
         )

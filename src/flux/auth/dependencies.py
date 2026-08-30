@@ -42,9 +42,7 @@ async def get_current_principal(
     if not raw:
         raise UnauthorizedError("missing API key")
     repo: AuthRepository = SqlAlchemyAuthRepository(session)
-    principal = await repo.find_principal_by_key_hash(
-        hash_api_key(raw, settings.api_key_pepper)
-    )
+    principal = await repo.find_principal_by_key_hash(hash_api_key(raw, settings.api_key_pepper))
     if principal is None:
         raise UnauthorizedError("invalid API key")
     return principal

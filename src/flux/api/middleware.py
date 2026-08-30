@@ -17,9 +17,7 @@ CORRELATION_HEADER = "X-Request-ID"
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """Assign a correlation id to every request and echo it back."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         cid = request.headers.get(CORRELATION_HEADER) or new_correlation_id()
         set_correlation_id(cid)
         response = await call_next(request)
@@ -30,9 +28,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Emit a structured access log line for every request."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         start = time.perf_counter()
         response = await call_next(request)
         duration_ms = round((time.perf_counter() - start) * 1000, 2)

@@ -38,9 +38,7 @@ class ContextLength:
 
     def __post_init__(self) -> None:
         if not 1 <= self.value <= MAX_CONTEXT_LENGTH:
-            raise DomainError(
-                f"context_length must be between 1 and {MAX_CONTEXT_LENGTH}"
-            )
+            raise DomainError(f"context_length must be between 1 and {MAX_CONTEXT_LENGTH}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -69,9 +67,7 @@ class Model:
     created_at: datetime
 
     @staticmethod
-    def register(
-        *, tenant_id: str, name: str, family: str
-    ) -> tuple[Model, ModelRegistered]:
+    def register(*, tenant_id: str, name: str, family: str) -> tuple[Model, ModelRegistered]:
         clean_name = name.strip()
         if not clean_name:
             raise DomainError("model name must not be empty")
@@ -87,9 +83,7 @@ class Model:
             family=clean_family,
             created_at=datetime.now(UTC),
         )
-        event = ModelRegistered(
-            model_id=model.id, tenant_id=tenant_id, name=clean_name
-        )
+        event = ModelRegistered(model_id=model.id, tenant_id=tenant_id, name=clean_name)
         return model, event
 
 

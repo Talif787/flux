@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
 
 import structlog
+from structlog.types import EventDict, WrappedLogger
 
 from flux.config import Settings
 from flux.observability import get_correlation_id
 
 
-def _add_correlation_id(
-    _logger: Any, _method: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+def _add_correlation_id(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
     cid = get_correlation_id()
     if cid is not None:
         event_dict["correlation_id"] = cid

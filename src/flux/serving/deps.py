@@ -13,6 +13,7 @@ from flux.api.deps import (
     get_worker_selector,
 )
 from flux.config import Settings, get_settings
+from flux.metering.persistence import SqlAlchemyUsageRecorder
 from flux.serving.application import InferenceService
 from flux.serving.domain import (
     IdempotencyStore,
@@ -21,6 +22,7 @@ from flux.serving.domain import (
     RateLimiter,
     Router,
     Scheduler,
+    UsageRecorder,
 )
 from flux.serving.persistence import (
     SqlAlchemyIdempotencyStore,
@@ -42,6 +44,12 @@ def get_idempotency_store(
     return SqlAlchemyIdempotencyStore(session)
 
 
+def get_usage_recorder(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> UsageRecorder:
+    return SqlAlchemyUsageRecorder(session)
+
+
 def get_inference_service(
     engine: Annotated[InferenceEngine, Depends(get_inference_engine)],
     scheduler: Annotated[Scheduler, Depends(get_scheduler)],
@@ -49,6 +57,7 @@ def get_inference_service(
     catalog: Annotated[ModelCatalog, Depends(get_model_catalog)],
     session: Annotated[AsyncSession, Depends(get_session)],
     selector: Annotated[RoundRobinSelector, Depends(get_worker_selector)],
+    usage_recorder: Annotated[UsageRecorder, Depends(get_usage_recorder)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> InferenceService:
     router: Router
@@ -63,5 +72,7 @@ def get_inference_service(
         scheduler=scheduler,
         rate_limiter=rate_limiter,
         catalog=catalog,
+        usage_recorder=usage_recorder,
         rate_limit_enabled=settings.rate_limit_enabled,
+        metering_enabled=settings.metering_enabled,
     )

@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 from flux.errors import NotFoundError, RateLimitError
+from flux.logging import get_logger
 from flux.serving.domain import (
     ChatMessage,
     CompletionChunk,
@@ -16,7 +17,10 @@ from flux.serving.domain import (
     RouteTarget,
     SamplingParams,
     Scheduler,
+    UsageRecorder,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -45,14 +49,18 @@ class InferenceService:
         scheduler: Scheduler,
         rate_limiter: RateLimiter,
         catalog: ModelCatalog,
+        usage_recorder: UsageRecorder | None = None,
         rate_limit_enabled: bool = True,
+        metering_enabled: bool = True,
     ) -> None:
         self._engine = engine
         self._router = router
         self._scheduler = scheduler
         self._rate_limiter = rate_limiter
         self._catalog = catalog
+        self._usage_recorder = usage_recorder
         self._rate_limit_enabled = rate_limit_enabled
+        self._metering_enabled = metering_enabled
 
     def _check_rate(self, tenant_id: str) -> None:
         if not self._rate_limit_enabled:
@@ -72,6 +80,25 @@ class InferenceService:
             messages=(),
             sampling=SamplingParams(),
         )
+
+    async def _record_usage(
+        self,
+        request: InferenceRequest,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        if not self._metering_enabled or self._usage_recorder is None:
+            return
+        try:
+            await self._usage_recorder.record(
+                tenant_id=request.tenant_id,
+                model_id=request.model_id,
+                model_name=request.model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+        except Exception:
+            logger.warning("metering_failed", model=request.model_name)
 
     async def prepare(
         self,
@@ -96,11 +123,20 @@ class InferenceService:
 
     async def complete(self, prepared: Prepared) -> CompletionResult:
         try:
-            return await self._engine.generate(prepared.request, prepared.target)
+            result = await self._engine.generate(prepared.request, prepared.target)
+            await self._record_usage(
+                prepared.request,
+                result.usage.prompt_tokens,
+                result.usage.completion_tokens,
+            )
+            return result
         finally:
             self._scheduler.release()
 
     async def stream(self, prepared: Prepared) -> AsyncIterator[CompletionChunk]:
+        # Streaming usage metering is deferred to a follow-on; the streaming
+        # response carries no authoritative usage and metering inside the
+        # generator's teardown is fragile against the session lifecycle.
         try:
             async for chunk in self._engine.stream(prepared.request, prepared.target):
                 yield chunk

@@ -11,3 +11,7 @@ build/
 .coverage
 htmlcov/
 *.db
+
+# local dev
+smoke.sh
+.python-version

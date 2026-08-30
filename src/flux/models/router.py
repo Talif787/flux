@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flux.api.deps import get_event_bus, get_session
-from flux.auth.dependencies import get_current_principal
-from flux.auth.domain import Principal
+from flux.auth.dependencies import require_roles
+from flux.auth.domain import Principal, Role
 from flux.events import EventBus
 from flux.models.application import (
     ModelService,
@@ -31,6 +31,11 @@ router = APIRouter(prefix="/v1/models", tags=["models"])
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_LIMIT)]
 OffsetQuery = Annotated[int, Query(ge=0)]
 
+Reader = Annotated[
+    Principal, Depends(require_roles(Role.MODEL_READ, Role.MODEL_WRITE))
+]
+Writer = Annotated[Principal, Depends(require_roles(Role.MODEL_WRITE))]
+
 
 def get_model_service(
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -39,11 +44,12 @@ def get_model_service(
     return ModelService(SqlAlchemyModelRepository(session), event_bus)
 
 
+ModelSvc = Annotated[ModelService, Depends(get_model_service)]
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ModelResponse)
 async def register_model(
-    payload: ModelCreateRequest,
-    principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[ModelService, Depends(get_model_service)],
+    payload: ModelCreateRequest, principal: Writer, service: ModelSvc
 ) -> ModelResponse:
     model = await service.register_model(
         RegisterModelCommand(
@@ -55,8 +61,8 @@ async def register_model(
 
 @router.get("", response_model=ModelListResponse)
 async def list_models(
-    principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[ModelService, Depends(get_model_service)],
+    principal: Reader,
+    service: ModelSvc,
     family: str | None = None,
     limit: LimitQuery = DEFAULT_LIMIT,
     offset: OffsetQuery = 0,
@@ -71,11 +77,7 @@ async def list_models(
 
 
 @router.get("/{model_id}", response_model=ModelResponse)
-async def get_model(
-    model_id: str,
-    principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[ModelService, Depends(get_model_service)],
-) -> ModelResponse:
+async def get_model(model_id: str, principal: Reader, service: ModelSvc) -> ModelResponse:
     model = await service.get_model(principal.tenant_id, model_id)
     return ModelResponse.from_domain(model)
 
@@ -88,8 +90,8 @@ async def get_model(
 async def register_version(
     model_id: str,
     payload: ModelVersionCreateRequest,
-    principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[ModelService, Depends(get_model_service)],
+    principal: Writer,
+    service: ModelSvc,
 ) -> ModelVersionResponse:
     version = await service.register_version(
         RegisterModelVersionCommand(
@@ -106,8 +108,8 @@ async def register_version(
 @router.get("/{model_id}/versions", response_model=ModelVersionListResponse)
 async def list_versions(
     model_id: str,
-    principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[ModelService, Depends(get_model_service)],
+    principal: Reader,
+    service: ModelSvc,
     limit: LimitQuery = DEFAULT_LIMIT,
     offset: OffsetQuery = 0,
 ) -> ModelVersionListResponse:

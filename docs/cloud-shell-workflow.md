@@ -229,11 +229,20 @@ Create your `.env` from the template and set a real pepper (never commit `.env`)
     sed -i "s/^FLUX_API_KEY_PEPPER=.*/FLUX_API_KEY_PEPPER=$(openssl rand -hex 32)/" .env
 
 Docker is available in Cloud Shell, so run Postgres with Compose, then migrate,
-seed, and start the app:
+seed, and start the app. Wait for the database to report healthy before
+migrating, otherwise the migration can hit a Postgres that is still starting up
+and fail with "connection reset by peer":
 
-    docker compose up -d db          # Postgres on localhost:5432
+    cd ~/flux
+    make bootstrap                   # db-up (waits for healthy) + migrate + seed
+
+`make bootstrap` is the safe one-shot. If you prefer the steps individually:
+
+    docker compose up -d --wait db   # blocks until Postgres healthcheck passes
     make migrate                     # alembic upgrade head
     make seed                        # prints a one-time API key: copy it
+
+Then start the server:
 
     # run on 8080 so Cloud Shell Web Preview works out of the box
     uvicorn flux.api.app:app --host 0.0.0.0 --port 8080 --reload
@@ -381,7 +390,7 @@ Guardrails:
 
     # environment
     source ~/flux/.venv/bin/activate
-    docker compose up -d db
+    docker compose up -d --wait db     # waits until Postgres is healthy
 
     # gates
     make lint && make typecheck && make test

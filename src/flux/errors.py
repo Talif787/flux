@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 class FluxError(Exception):
@@ -52,6 +53,16 @@ class NoWorkerAvailableError(FluxError):
 
 class UpstreamError(FluxError):
     """Raised when a worker returns an error or cannot be reached."""
+
+
+class BudgetExceededError(FluxError):
+    """Raised when a tenant has spent past its monthly budget."""
+
+    def __init__(self, tenant_id: str, limit: Decimal, spent: Decimal) -> None:
+        super().__init__(f"monthly budget exceeded for tenant {tenant_id}")
+        self.tenant_id = tenant_id
+        self.limit = limit
+        self.spent = spent
 
 
 @dataclass(frozen=True)

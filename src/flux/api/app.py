@@ -9,9 +9,11 @@ from fastapi.responses import JSONResponse
 
 from flux.api.health import router as health_router
 from flux.api.middleware import CorrelationIdMiddleware, RequestLoggingMiddleware
+from flux.budgets.router import router as budgets_router
 from flux.config import Settings, get_settings
 from flux.db import create_engine, create_sessionmaker
 from flux.errors import (
+    BudgetExceededError,
     ConflictError,
     DomainError,
     ForbiddenError,
@@ -100,6 +102,10 @@ def _register_exception_handlers(app: FastAPI) -> None:
     async def _upstream(_: Request, exc: UpstreamError) -> JSONResponse:
         return _problem(502, "Bad Gateway", str(exc), "upstream-error")
 
+    @app.exception_handler(BudgetExceededError)
+    async def _budget(_: Request, exc: BudgetExceededError) -> JSONResponse:
+        return _problem(402, "Payment Required", str(exc), "budget-exceeded")
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
@@ -142,6 +148,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(serving_router)
     app.include_router(workers_router)
     app.include_router(metering_router)
+    app.include_router(budgets_router)
     return app
 
 

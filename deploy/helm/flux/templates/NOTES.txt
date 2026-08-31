@@ -1,0 +1,27 @@
+Flux control plane installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Gateway service:
+  {{ include "flux.fullname" . }}-gateway.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.gateway.service.port }}
+
+Port-forward to reach it locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "flux.fullname" . }}-gateway 8000:{{ .Values.gateway.service.port }}
+  curl -s http://localhost:8000/livez
+
+{{- if .Values.gateway.autoscaling.enabled }}
+
+Autoscaling is enabled for the gateway ({{ .Values.gateway.autoscaling.minReplicas }}-{{ .Values.gateway.autoscaling.maxReplicas }} replicas, target CPU {{ .Values.gateway.autoscaling.targetCPUUtilizationPercentage }}%).
+  kubectl -n {{ .Release.Namespace }} get hpa {{ include "flux.fullname" . }}-gateway
+(The metrics-server must be installed in the cluster for the HPA to read CPU metrics.)
+{{- end }}
+
+{{- if .Values.migrations.enabled }}
+
+Schema migrations run as a pre-install/pre-upgrade hook Job (alembic upgrade head).
+{{- end }}
+
+{{- if not .Values.existingSecret }}
+
+WARNING: this release created a Secret from chart values. For production, set
+existingSecret to a Secret you manage (or an external secret manager) instead of
+committing secrets to values.
+{{- end }}

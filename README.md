@@ -188,6 +188,41 @@ Scope note: Kubernetes manifests and a Helm chart (with autoscaling) are Phase 6
 Part B; Terraform for the cloud footprint (GKE, Cloud SQL, Artifact Registry) is
 Phase 6 Part C.
 
+## What is in Phase 6 (Part B): Kubernetes and Helm
+
+Phase 6 Part B packages the control plane for Kubernetes as a Helm chart and adds
+horizontal autoscaling.
+
+- The chart lives in `deploy/helm/flux`. It renders a gateway Deployment and
+  Service, a ConfigMap for non-secret `FLUX_*` config, a Secret for the API key
+  pepper and database URL (or an `existingSecret` you manage), a ServiceAccount, an
+  optional Ingress, and an optional PodDisruptionBudget. Liveness and readiness
+  probes use the app's `/livez` and `/readyz`.
+- Autoscaling: a HorizontalPodAutoscaler (autoscaling/v2) scales the gateway on CPU
+  utilization between `minReplicas` and `maxReplicas`. This is the autoscaling that
+  earlier phases deferred; it requires the cluster's metrics-server. When
+  autoscaling is enabled the Deployment omits a static replica count so the HPA
+  owns it.
+- Schema migrations run as a pre-install and pre-upgrade Helm hook Job
+  (`alembic upgrade head`) using the same image, so the schema is current before new
+  pods serve traffic.
+- The worker is optional (`worker.enabled`, off by default since the stub backend
+  needs none). When enabled it runs the same image with the worker command and its
+  own Service, so one image serves both roles.
+- `deploy/k8s/dev-postgres.yaml` is a development-only PostgreSQL manifest for
+  testing the chart on a local cluster (kind or minikube). Production uses a managed
+  database (Phase 6 Part C provisions Cloud SQL).
+
+Validate and install:
+
+    helm lint deploy/helm/flux
+    helm template flux deploy/helm/flux            # render manifests
+    helm install flux deploy/helm/flux --dry-run   # server-side dry run
+
+Scope note: Terraform for the cloud footprint (GKE, Cloud SQL, Artifact Registry,
+IAM) is Phase 6 Part C. This chart deploys onto an existing cluster and expects a
+reachable database.
+
 ## Requirements
 
 - Python 3.12+

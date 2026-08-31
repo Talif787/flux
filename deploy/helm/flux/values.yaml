@@ -1,0 +1,110 @@
+# Image used by both the gateway and (optionally) the worker.
+image:
+  repository: ghcr.io/talif787/flux
+  # tag defaults to the chart appVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Non-secret application config, surfaced as FLUX_* env via a ConfigMap.
+config:
+  env: prod
+  logLevel: INFO
+  logJson: true
+  servingBackend: stub          # stub | remote
+  meteringEnabled: true
+  budgetEnforcementEnabled: false
+  billingCurrency: USD
+  otelEnabled: false
+
+# Secret values, surfaced as FLUX_* env via a Secret.
+# For production prefer an external secret manager and set existingSecret.
+secrets:
+  apiKeyPepper: "change-me-in-production"
+  databaseUrl: "postgresql+asyncpg://flux:flux@flux-postgres:5432/flux"
+
+# If set, the chart uses this pre-existing Secret (with keys FLUX_API_KEY_PEPPER
+# and FLUX_DATABASE_URL) instead of creating one from the values above.
+existingSecret: ""
+
+# One-off schema migration (alembic upgrade head) as a pre-install/pre-upgrade hook.
+migrations:
+  enabled: true
+  backoffLimit: 3
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "500m"
+      memory: 256Mi
+
+gateway:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: ""  # set to a percentage to also scale on memory
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+worker:
+  enabled: false                # the stub backend needs no worker; enable for remote
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 8090
+  config:
+    workerName: flux-worker
+    servedModels: ""            # comma-separated; empty serves any model
+    maxTokensCap: 4096
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: flux.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1

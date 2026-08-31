@@ -1,0 +1,54 @@
+# Development-only PostgreSQL for testing the Helm chart on a local cluster.
+# NOT for production: no persistence, single replica, hard-coded credentials.
+apiVersion: v1
+kind: Service
+metadata:
+  name: flux-postgres
+  labels:
+    app: flux-postgres
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: flux-postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flux-postgres
+  labels:
+    app: flux-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flux-postgres
+  template:
+    metadata:
+      labels:
+        app: flux-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: flux
+            - name: POSTGRES_PASSWORD
+              value: flux
+            - name: POSTGRES_DB
+              value: flux
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "flux"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "flux"]
+            initialDelaySeconds: 10
+            periodSeconds: 10

@@ -82,6 +82,15 @@ worker:
     workerName: flux-worker
     servedModels: ""            # comma-separated; empty serves any model
     maxTokensCap: 4096
+  # Self-registration with the control plane. When enabled the worker registers
+  # itself on startup and heartbeats; requires the gateway in remote serving mode
+  # and an API key with the worker.register role. apiKey is sensitive: prefer a
+  # managed secret in production.
+  selfRegister:
+    enabled: false
+    controlPlaneUrl: "http://flux-gateway"
+    advertiseUrl: "http://flux-worker:8090"
+    apiKey: ""
   resources:
     requests:
       cpu: 100m

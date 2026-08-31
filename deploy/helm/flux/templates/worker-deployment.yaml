@@ -49,6 +49,14 @@ spec:
               value: {{ .Values.worker.config.servedModels | quote }}
             - name: FLUX_WORKER_MAX_TOKENS_CAP
               value: {{ .Values.worker.config.maxTokensCap | quote }}
+            {{- if .Values.worker.selfRegister.enabled }}
+            - name: FLUX_WORKER_CONTROL_PLANE_URL
+              value: {{ .Values.worker.selfRegister.controlPlaneUrl | quote }}
+            - name: FLUX_WORKER_ADVERTISE_URL
+              value: {{ .Values.worker.selfRegister.advertiseUrl | quote }}
+            - name: FLUX_WORKER_API_KEY
+              value: {{ .Values.worker.selfRegister.apiKey | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /livez

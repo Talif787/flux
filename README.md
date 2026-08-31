@@ -164,6 +164,30 @@ Scope note: autoscaling recommendations (a scaling policy over load signals plus
 provisioner port) are not part of this phase. They pair naturally with the
 Phase 6 provisioning and IaC work, where the actual scaling action lives.
 
+## What is in Phase 6 (Part A): containerization and CI
+
+Phase 6 Part A packages the control plane and automates the quality gates.
+
+- A `.dockerignore` keeps the build context small and reproducible (no `.git`,
+  virtualenv, caches, tests, or local `.env`). The existing multi-stage
+  `Dockerfile` builds a slim, non-root runtime image that serves the gateway; the
+  same image runs the worker by overriding the command
+  (`uvicorn flux.worker.app:app --port 8090`).
+- GitHub Actions CI (`.github/workflows/ci.yml`) runs on every push to `main` and
+  every pull request, in three jobs: quality (`make lint`, `make typecheck`,
+  `make test`), migrations (applies the Alembic chain against a real PostgreSQL
+  service and verifies it downgrades to base and re-upgrades), and a Docker build
+  that proves the image builds.
+- A release workflow (`.github/workflows/release.yml`) builds and publishes the
+  image to the GitHub Container Registry on version tags (`v*`), tagged with the
+  git tag, the semver version, and the commit SHA. It uses the built-in
+  `GITHUB_TOKEN`, so no extra secrets are required.
+- `make ci` runs the same lint, type-check, and test gates locally.
+
+Scope note: Kubernetes manifests and a Helm chart (with autoscaling) are Phase 6
+Part B; Terraform for the cloud footprint (GKE, Cloud SQL, Artifact Registry) is
+Phase 6 Part C.
+
 ## Requirements
 
 - Python 3.12+

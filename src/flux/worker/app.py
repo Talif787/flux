@@ -4,10 +4,16 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from flux.logging import get_logger
-from flux.worker.backend import EchoBackend, InferenceBackend
+from flux.worker.backend import (
+    BackendError,
+    EchoBackend,
+    InferenceBackend,
+    OpenAIBackend,
+)
 from flux.worker.config import WorkerSettings, get_worker_settings
 from flux.worker.registration import (
     RegistrationClient,
@@ -20,7 +26,13 @@ logger = get_logger(__name__)
 
 
 def _build_backend(settings: WorkerSettings) -> InferenceBackend:
-    # settings.backend is Literal["echo"] today; this is the seam for real engines.
+    if settings.backend == "openai":
+        return OpenAIBackend(
+            base_url=settings.upstream_base_url,
+            api_key=settings.upstream_api_key,
+            model=settings.upstream_model or None,
+            timeout=settings.request_timeout_seconds,
+        )
     return EchoBackend()
 
 
@@ -68,9 +80,20 @@ def create_worker_app(settings: WorkerSettings | None = None) -> FastAPI:
             if registration is not None:
                 await registration.deregister()
                 await registration.aclose()
+            backend = app.state.backend
+            if hasattr(backend, "aclose"):
+                await backend.aclose()
             logger.info("worker_shutdown")
 
     app = FastAPI(title="Flux Worker", version="0.4.0", lifespan=lifespan)
+
+    @app.exception_handler(BackendError)
+    async def _backend_error(_: Request, exc: BackendError) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={"error": {"message": str(exc), "type": "upstream_error"}},
+        )
+
     app.include_router(worker_router)
     return app
 

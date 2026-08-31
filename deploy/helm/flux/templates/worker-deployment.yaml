@@ -49,6 +49,16 @@ spec:
               value: {{ .Values.worker.config.servedModels | quote }}
             - name: FLUX_WORKER_MAX_TOKENS_CAP
               value: {{ .Values.worker.config.maxTokensCap | quote }}
+            - name: FLUX_WORKER_BACKEND
+              value: {{ .Values.worker.config.backend | quote }}
+            {{- if eq .Values.worker.config.backend "openai" }}
+            - name: FLUX_WORKER_UPSTREAM_BASE_URL
+              value: {{ .Values.worker.config.upstreamBaseUrl | quote }}
+            - name: FLUX_WORKER_UPSTREAM_API_KEY
+              value: {{ .Values.worker.config.upstreamApiKey | quote }}
+            - name: FLUX_WORKER_UPSTREAM_MODEL
+              value: {{ .Values.worker.config.upstreamModel | quote }}
+            {{- end }}
             {{- if .Values.worker.selfRegister.enabled }}
             - name: FLUX_WORKER_CONTROL_PLANE_URL
               value: {{ .Values.worker.selfRegister.controlPlaneUrl | quote }}

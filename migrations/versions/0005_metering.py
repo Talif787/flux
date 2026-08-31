@@ -5,7 +5,6 @@ Revises: 0004_workers
 Create Date: 2026-01-05 00:00:00.000000
 
 """
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -31,9 +30,15 @@ def upgrade() -> None:
         sa.Column("recorded_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_usage_records"),
     )
-    op.create_index("ix_usage_records_tenant_id", "usage_records", ["tenant_id"])
-    op.create_index("ix_usage_records_model_name", "usage_records", ["model_name"])
-    op.create_index("ix_usage_records_recorded_at", "usage_records", ["recorded_at"])
+    op.create_index(
+        "ix_usage_records_tenant_id", "usage_records", ["tenant_id"]
+    )
+    op.create_index(
+        "ix_usage_records_model_name", "usage_records", ["model_name"]
+    )
+    op.create_index(
+        "ix_usage_records_recorded_at", "usage_records", ["recorded_at"]
+    )
     op.create_table(
         "model_prices",
         sa.Column("model_name", sa.String(length=128), nullable=False),

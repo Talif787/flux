@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test cov run run-worker migrate seed db-up db-down bootstrap compose-up compose-down docker-build
+.PHONY: install lint typecheck test cov ci run run-worker migrate seed db-up db-down bootstrap compose-up compose-down docker-build
 
 install:
 	pip install -e ".[dev]"
@@ -15,6 +15,8 @@ test:
 
 cov:
 	coverage run -m pytest -q && coverage report -m
+
+ci: lint typecheck test
 
 run:
 	uvicorn flux.api.app:app --reload --host 0.0.0.0 --port 8000

@@ -5,7 +5,6 @@ Revises: 0003_idempotency
 Create Date: 2026-01-04 00:00:00.000000
 
 """
-
 from __future__ import annotations
 
 from collections.abc import Sequence

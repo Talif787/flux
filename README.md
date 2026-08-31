@@ -223,6 +223,48 @@ Scope note: Terraform for the cloud footprint (GKE, Cloud SQL, Artifact Registry
 IAM) is Phase 6 Part C. This chart deploys onto an existing cluster and expects a
 reachable database.
 
+## What is in Phase 6 (Part C): Terraform for the GCP footprint
+
+Phase 6 Part C provisions the cloud infrastructure the chart deploys onto. It lives
+in `deploy/terraform` as a single root module.
+
+- Enables the required Google APIs (compute, container, sqladmin, servicenetworking,
+  artifactregistry, iam).
+- A custom VPC and subnet with secondary ranges for VPC-native GKE pods and services,
+  plus a reserved range and service-networking peering so Cloud SQL gets a private IP.
+- A zonal, VPC-native GKE cluster with Workload Identity, a least-privilege node
+  service account (Artifact Registry reader plus logging/monitoring), and an
+  autoscaling node pool.
+- A Cloud SQL for PostgreSQL instance with a private IP only (no public exposure),
+  reachable from pods in the same VPC, plus the application database and user with a
+  generated password.
+- An Artifact Registry Docker repository for the image.
+- Outputs the kubectl credentials command, the Artifact Registry path, the database
+  private IP, and a ready-to-use `FLUX_DATABASE_URL` (sensitive) that plugs straight
+  into the Helm chart, so no chart change is needed to move from the dev Postgres to
+  managed Cloud SQL.
+
+Defaults are the cheapest credible settings (single small node, `db-f1-micro`) and
+`deletion_protection = false` so a demo can be torn down; raise both for production.
+
+Use it:
+
+    cd deploy/terraform
+    cp terraform.tfvars.example terraform.tfvars    # set project_id
+    terraform init
+    terraform validate
+    terraform plan                                  # review; free
+    terraform apply                                 # creates billable resources
+    terraform destroy                               # tear down when done
+
+Then point the chart at the managed database with the Terraform output:
+
+    terraform -chdir=deploy/terraform output -raw database_url   # use as existingSecret data or --set
+
+This completes the DevOps track (Part A containerization and CI, Part B Kubernetes and
+Helm, Part C Terraform). Remaining roadmap items are worker self-registration and a
+real GPU inference backend.
+
 ## Requirements
 
 - Python 3.12+

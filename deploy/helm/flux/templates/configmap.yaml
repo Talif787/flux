@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "flux.fullname" . }}
+  labels:
+    {{- include "flux.labels" . | nindent 4 }}
+data:
+  FLUX_ENV: {{ .Values.config.env | quote }}
+  FLUX_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  FLUX_LOG_JSON: {{ .Values.config.logJson | quote }}
+  FLUX_SERVING_BACKEND: {{ .Values.config.servingBackend | quote }}
+  FLUX_METERING_ENABLED: {{ .Values.config.meteringEnabled | quote }}
+  FLUX_BUDGET_ENFORCEMENT_ENABLED: {{ .Values.config.budgetEnforcementEnabled | quote }}
+  FLUX_BILLING_CURRENCY: {{ .Values.config.billingCurrency | quote }}
+  FLUX_OTEL_ENABLED: {{ .Values.config.otelEnabled | quote }}

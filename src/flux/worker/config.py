@@ -27,9 +27,27 @@ class WorkerSettings(BaseSettings):
     served_models: str = ""  # comma-separated; empty means serve any model
     max_tokens_cap: int = Field(default=4096, ge=1)
 
+    # Self-registration with the control plane (all three required to enable).
+    control_plane_url: str = ""
+    advertise_url: str = ""
+    api_key: str = ""
+    worker_id: str = ""  # stable id for idempotent re-registration; defaults to name
+    max_concurrency: int = Field(default=8, ge=1)
+    heartbeat_interval_seconds: float = Field(default=10.0, gt=0.0)
+    register_retries: int = Field(default=5, ge=0)
+    register_retry_delay_seconds: float = Field(default=2.0, gt=0.0)
+
     @property
     def served_model_set(self) -> frozenset[str]:
         return frozenset(m.strip() for m in self.served_models.split(",") if m.strip())
+
+    @property
+    def effective_worker_id(self) -> str:
+        return self.worker_id or self.worker_name
+
+    @property
+    def registration_enabled(self) -> bool:
+        return bool(self.control_plane_url and self.advertise_url and self.api_key)
 
 
 @lru_cache

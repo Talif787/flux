@@ -13,3 +13,4 @@ htmlcov/
 *.db
 flux-phase4b.zip
 flux-phase4b*runbook.md
+.env.worker

@@ -265,6 +265,34 @@ This completes the DevOps track (Part A containerization and CI, Part B Kubernet
 Helm, Part C Terraform). Remaining roadmap items are worker self-registration and a
 real GPU inference backend.
 
+## What is in Phase 7: worker self-registration
+
+Phase 7 lets a worker register itself with the control plane on startup and keep its
+lease alive, instead of being registered by hand through the API. This makes the
+`remote` serving mode operationally real: start a worker pointed at the gateway and it
+appears in the registry and receives traffic.
+
+- New worker settings (all `FLUX_WORKER_`): `control_plane_url`, `advertise_url` (the
+  base URL the gateway uses to reach this worker), `api_key` (a key with the
+  `worker.register` role), an optional stable `worker_id` (defaults to the worker
+  name), `max_concurrency`, and `heartbeat_interval_seconds`. Registration turns on
+  only when the URL, advertise URL, and API key are all set, so existing behavior is
+  unchanged by default.
+- On startup the worker `PUT`s itself to `/v1/workers/{id}` (idempotent, so restarts
+  update the same entry), retrying a few times, then runs a heartbeat loop that
+  `POST`s to `/v1/workers/{id}/heartbeat` on the configured interval. A heartbeat that
+  returns 404 (the lease expired) triggers a re-register. On shutdown the worker
+  deregisters, best-effort. Heartbeat and deregister failures are logged and never
+  crash the worker.
+- The Helm chart's worker can self-register too: `worker.selfRegister.enabled` adds
+  the control-plane URL, advertise URL, and API key as env. The defaults point at the
+  in-cluster gateway and worker services, so a worker registers with the gateway
+  inside the release namespace.
+
+This completes the compute-plane story from Phase 4 (standalone worker, then registry
+and discovery routing, now self-registration). The remaining roadmap item is a real
+inference backend behind the worker's backend port.
+
 ## Requirements
 
 - Python 3.12+

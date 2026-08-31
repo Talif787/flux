@@ -293,6 +293,45 @@ This completes the compute-plane story from Phase 4 (standalone worker, then reg
 and discovery routing, now self-registration). The remaining roadmap item is a real
 inference backend behind the worker's backend port.
 
+## What is in Phase 8: a real inference backend
+
+Phase 8 gives the worker a real inference engine behind its backend port, replacing
+the echo backend for production use. The worker's HTTP surface, streaming, usage
+accounting, and self-registration are unchanged; only the engine differs.
+
+- OpenAIBackend (worker/backend.py) proxies to an upstream OpenAI-compatible server,
+  which vLLM, Ollama, TGI, and OpenAI all speak. It maps the worker's InferenceJob to
+  an OpenAI chat request, parses the response (or the streamed SSE) back into the
+  worker's Completion and Chunk types, carries usage through when the upstream
+  reports it (falling back to a token estimate otherwise), and raises a BackendError
+  on upstream failure, which the worker returns as HTTP 502.
+- New worker settings (FLUX_WORKER_): backend is now echo or openai; for openai,
+  upstream_base_url (include /v1), optional upstream_api_key (needed for OpenAI, not
+  for Ollama), an optional upstream_model override, and a request timeout. A
+  validator rejects backend=openai without an upstream URL, so misconfiguration fails
+  fast at startup.
+- The worker lifespan builds the configured backend and closes it on shutdown. The
+  echo backend remains the default, so nothing changes unless you opt in.
+- The Helm chart's worker exposes worker.config.backend and the upstream settings, so
+  an in-cluster worker can serve a real model.
+
+Try it locally against Ollama (CPU-friendly):
+
+    ollama serve &                 # or run the ollama container
+    ollama pull llama3.2:1b
+    export FLUX_WORKER_BACKEND=openai
+    export FLUX_WORKER_UPSTREAM_BASE_URL=http://localhost:11434/v1
+    export FLUX_WORKER_SERVED_MODELS=llama3.2:1b
+    uvicorn flux.worker.app:app --port 8090
+
+Then register the model in the control plane and invoke it through the gateway in
+remote mode; the completion is produced by the real model.
+
+This completes the roadmap: the control plane (registry, tenancy, serving, metering,
+budgets), the compute plane (worker, discovery routing, self-registration, and now a
+real backend), and the DevOps track (containerization, CI, Kubernetes/Helm with
+autoscaling, and Terraform).
+
 ## Requirements
 
 - Python 3.12+

@@ -82,6 +82,12 @@ worker:
     workerName: flux-worker
     servedModels: ""            # comma-separated; empty serves any model
     maxTokensCap: 4096
+    # Inference backend: echo (default, CPU) or openai (proxy to an upstream
+    # OpenAI-compatible server such as vLLM, Ollama, TGI, or OpenAI).
+    backend: echo
+    upstreamBaseUrl: ""       # required for backend=openai; include /v1
+    upstreamApiKey: ""        # optional; needed for OpenAI, not for Ollama
+    upstreamModel: ""         # optional override of the model name sent upstream
   # Self-registration with the control plane. When enabled the worker registers
   # itself on startup and heartbeats; requires the gateway in remote serving mode
   # and an API key with the worker.register role. apiKey is sensitive: prefer a

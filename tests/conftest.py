@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
@@ -22,6 +23,16 @@ from flux.serving.engine import StubInferenceEngine
 from flux.serving.ratelimit import TokenBucketRateLimiter
 from flux.serving.routing import RoundRobinSelector
 from flux.serving.scheduling import SemaphoreScheduler
+
+
+@pytest.fixture(autouse=True)
+def _isolate_worker_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Worker settings read FLUX_WORKER_* env vars; clear them so worker
+    tests are hermetic regardless of the shell or a local .env.worker."""
+    for key in list(os.environ):
+        if key.startswith("FLUX_WORKER_"):
+            monkeypatch.delenv(key, raising=False)
+
 
 TEST_PEPPER = "test-pepper"
 

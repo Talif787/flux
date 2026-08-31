@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from flux.errors import NotFoundError, RateLimitError
 from flux.logging import get_logger
 from flux.serving.domain import (
+    BudgetGuard,
     ChatMessage,
     CompletionChunk,
     CompletionResult,
@@ -50,8 +51,10 @@ class InferenceService:
         rate_limiter: RateLimiter,
         catalog: ModelCatalog,
         usage_recorder: UsageRecorder | None = None,
+        budget_guard: BudgetGuard | None = None,
         rate_limit_enabled: bool = True,
         metering_enabled: bool = True,
+        budget_enforcement_enabled: bool = False,
     ) -> None:
         self._engine = engine
         self._router = router
@@ -59,8 +62,10 @@ class InferenceService:
         self._rate_limiter = rate_limiter
         self._catalog = catalog
         self._usage_recorder = usage_recorder
+        self._budget_guard = budget_guard
         self._rate_limit_enabled = rate_limit_enabled
         self._metering_enabled = metering_enabled
+        self._budget_enforcement_enabled = budget_enforcement_enabled
 
     def _check_rate(self, tenant_id: str) -> None:
         if not self._rate_limit_enabled:
@@ -100,6 +105,11 @@ class InferenceService:
         except Exception:
             logger.warning("metering_failed", model=request.model_name)
 
+    async def _check_budget(self, tenant_id: str) -> None:
+        if not self._budget_enforcement_enabled or self._budget_guard is None:
+            return
+        await self._budget_guard.check(tenant_id)
+
     async def prepare(
         self,
         *,
@@ -109,6 +119,7 @@ class InferenceService:
         sampling: SamplingParams,
     ) -> Prepared:
         self._check_rate(tenant_id)
+        await self._check_budget(tenant_id)
         base = await self._resolve(tenant_id, model)
         request = InferenceRequest(
             tenant_id=tenant_id,

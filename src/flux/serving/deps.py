@@ -12,10 +12,18 @@ from flux.api.deps import (
     get_session,
     get_worker_selector,
 )
+from flux.budgets.application import EnforcingBudgetGuard
+from flux.budgets.persistence import SqlAlchemyBudgetRepository
 from flux.config import Settings, get_settings
-from flux.metering.persistence import SqlAlchemyUsageRecorder
+from flux.metering.application import CostReporter
+from flux.metering.persistence import (
+    SqlAlchemyPriceRepository,
+    SqlAlchemyUsageRecorder,
+    SqlAlchemyUsageRepository,
+)
 from flux.serving.application import InferenceService
 from flux.serving.domain import (
+    BudgetGuard,
     IdempotencyStore,
     InferenceEngine,
     ModelCatalog,
@@ -50,6 +58,20 @@ def get_usage_recorder(
     return SqlAlchemyUsageRecorder(session)
 
 
+def get_budget_guard(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> BudgetGuard:
+    reporter = CostReporter(
+        usage_repo=SqlAlchemyUsageRepository(session),
+        price_repo=SqlAlchemyPriceRepository(session),
+        default_prompt_per_1k=settings.default_prompt_per_1k,
+        default_completion_per_1k=settings.default_completion_per_1k,
+        currency=settings.billing_currency,
+    )
+    return EnforcingBudgetGuard(SqlAlchemyBudgetRepository(session), reporter)
+
+
 def get_inference_service(
     engine: Annotated[InferenceEngine, Depends(get_inference_engine)],
     scheduler: Annotated[Scheduler, Depends(get_scheduler)],
@@ -58,6 +80,7 @@ def get_inference_service(
     session: Annotated[AsyncSession, Depends(get_session)],
     selector: Annotated[RoundRobinSelector, Depends(get_worker_selector)],
     usage_recorder: Annotated[UsageRecorder, Depends(get_usage_recorder)],
+    budget_guard: Annotated[BudgetGuard, Depends(get_budget_guard)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> InferenceService:
     router: Router
@@ -73,6 +96,8 @@ def get_inference_service(
         rate_limiter=rate_limiter,
         catalog=catalog,
         usage_recorder=usage_recorder,
+        budget_guard=budget_guard,
         rate_limit_enabled=settings.rate_limit_enabled,
         metering_enabled=settings.metering_enabled,
+        budget_enforcement_enabled=settings.budget_enforcement_enabled,
     )

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     default_prompt_per_1k: Decimal = Field(default=Decimal("0.0005"), ge=0)
     default_completion_per_1k: Decimal = Field(default=Decimal("0.0015"), ge=0)
     billing_currency: str = "USD"
+    budget_enforcement_enabled: bool = False
 
     otel_enabled: bool = False
     otel_exporter_otlp_endpoint: str | None = None

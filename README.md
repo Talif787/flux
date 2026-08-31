@@ -106,7 +106,7 @@ registration keeps a worker routable for a test session. Worker self-registratio
 
 Deferred to later phases: worker self-registration and a real GPU engine behind
 the worker's InferenceBackend port (Phase 4 follow-on); streaming metering,
-budgets with enforcement, and autoscaling (Phase 5 Part B); and further cost
+and autoscaling recommendations plus a real provisioner (with Phase 6); and further cost
 (Phase 5), and the full Kubernetes/Helm/Terraform/CI stack (Phase 6).
 
 ## What is in Phase 5 (Part A): usage metering and cost
@@ -137,6 +137,32 @@ path, prices it, and reports cost per tenant and per model.
 Scope note: only non-streaming completions are metered in Part A. Streaming usage
 metering, per-tenant budgets with serving-path enforcement, and autoscaling
 recommendations are deferred to Phase 5 Part B.
+
+## What is in Phase 5 (Part B): budgets and enforcement
+
+Phase 5 Part B completes the FinOps story: it turns the cost figures from Part A
+into per-tenant monthly budgets and can enforce them at the serving path.
+
+- Per-tenant budgets are a managed resource under `/v1/budgets`: platform admins
+  set a monthly limit (`PUT`), list all budgets (`GET`), and remove one
+  (`DELETE`). A budget is one monthly limit per tenant, in the configured billing
+  currency. Migration `0006_budgets` adds the `budgets` table.
+- `GET /v1/budgets/{tenant_id}` returns a budget status: the limit, current
+  calendar-month spend (computed from usage and prices, reusing the Part A cost
+  report), remaining amount, and whether the budget is exceeded. A tenant admin
+  sees their own tenant; a platform admin can view any tenant.
+- Enforcement is a serving-path guard. When `FLUX_BUDGET_ENFORCEMENT_ENABLED` is
+  on, a request from a tenant whose month-to-date spend has reached its limit is
+  rejected before admission with HTTP 402. The guard fails open: if spend cannot
+  be determined it allows the request and logs, so a metering hiccup never blocks
+  all traffic, and a tenant with no budget is unconstrained. Enforcement is off by
+  default, so existing behavior is unchanged until it is switched on.
+- Budgets reuse existing roles: `tenant.admin` views a budget, `platform.admin`
+  manages budgets. No new roles.
+
+Scope note: autoscaling recommendations (a scaling policy over load signals plus a
+provisioner port) are not part of this phase. They pair naturally with the
+Phase 6 provisioning and IaC work, where the actual scaling action lives.
 
 ## Requirements
 

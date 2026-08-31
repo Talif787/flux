@@ -39,6 +39,8 @@ def settings() -> Settings:
         log_json=False,
         otel_enabled=False,
         serving_backend="stub",
+        metering_enabled=True,
+        budget_enforcement_enabled=False,
     )
 
 

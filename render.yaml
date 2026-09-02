@@ -1,0 +1,32 @@
+# Render Blueprint for the Flux gateway (place at the ROOT of the flux backend repo).
+# Deploys: the FastAPI control-plane gateway as a free Render web service (Docker),
+# in stub serving mode (self-contained inference; no separate worker needed for $0).
+services:
+  - type: web
+    name: flux-gateway
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Render sets $PORT; the app must bind it. This overrides the image CMD.
+    dockerCommand: sh -c "uvicorn flux.api.app:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /livez
+    autoDeploy: true
+    envVars:
+      - key: FLUX_ENV
+        value: production
+      - key: FLUX_LOG_JSON
+        value: "true"
+      - key: FLUX_OTEL_ENABLED
+        value: "false"
+      - key: FLUX_SERVING_BACKEND
+        value: stub
+      - key: FLUX_METERING_ENABLED
+        value: "true"
+      # Secrets: set these in the Render dashboard (sync:false = not stored in the blueprint)
+      - key: FLUX_API_KEY_PEPPER
+        sync: false
+      - key: FLUX_DATABASE_URL
+        sync: false

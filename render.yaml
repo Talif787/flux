@@ -11,7 +11,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     # Render sets $PORT; the app must bind it. This overrides the image CMD.
-    dockerCommand: sh -c "uvicorn flux.api.app:app --host 0.0.0.0 --port $PORT"
+    dockerCommand: python -m uvicorn flux.api.app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /livez
     autoDeploy: true
     envVars:

@@ -16,7 +16,7 @@ services:
     autoDeploy: true
     envVars:
       - key: FLUX_ENV
-        value: production
+        value: prod
       - key: FLUX_LOG_JSON
         value: "true"
       - key: FLUX_OTEL_ENABLED
